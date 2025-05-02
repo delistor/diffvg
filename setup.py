@@ -1,31 +1,3 @@
-# Adapted from https://github.com/pybind/cmake_example/blob/master/setup.py
-import os
-import sys
-import platform
-import subprocess
-import importlib
-from sysconfig import get_paths
-from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
-from setuptools.command.install import install
-from distutils.sysconfig import get_config_var
-import pybind11
-
-class CMakeExtension(Extension):
-    def __init__(self, name, sourcedir, build_with_cuda):
-        super().__init__(name, sources=[])
-        self.sourcedir = os.path.abspath(sourcedir)
-        self.build_with_cuda = build_with_cuda
-
-class Build(build_ext):
-    def run(self):
-        try:
-            subprocess.check_output(['cmake', '--version'])
-        except OSError:
-            raise RuntimeError("CMake must be installed")
-
-        super().run()
-
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
             extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
@@ -36,9 +8,12 @@ class Build(build_ext):
                 f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}",
                 f"-DPYTHON_LIBRARY={get_config_var('LIBDIR')}",
                 f"-DPYTHON_INCLUDE_PATH={include_path}",
-                f"-DPYBIND11_INCLUDE_DIR={pybind11_include}",
                 f"-DDIFFVG_CUDA={'1' if ext.build_with_cuda else '0'}"
             ]
+
+            # 👇 将 pybind11 路径传给 CMake
+            env = os.environ.copy()
+            env['PYBIND11_INCLUDE_DIR'] = pybind11_include
 
             cfg = 'Debug' if self.debug else 'Release'
             build_args = ['--config', cfg]
@@ -55,7 +30,6 @@ class Build(build_ext):
                 cmake_args += [f"-DCMAKE_BUILD_TYPE={cfg}"]
                 build_args += ['--', '-j8']
 
-            env = os.environ.copy()
             env['CXXFLAGS'] = f'{env.get("CXXFLAGS", "")} -DVERSION_INFO="{self.distribution.get_version()}"'
 
             if not os.path.exists(self.build_temp):
@@ -64,40 +38,3 @@ class Build(build_ext):
             subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
         else:
             super().build_extension(ext)
-
-# === 环境检测：是否需要 CUDA ===
-torch_spec = importlib.util.find_spec("torch")
-tf_spec = importlib.util.find_spec("tensorflow")
-packages = []
-build_with_cuda = False
-
-if torch_spec:
-    packages.append('pydiffvg')
-    import torch
-    if torch.cuda.is_available():
-        build_with_cuda = True
-if tf_spec and sys.platform != 'win32':
-    packages.append('pydiffvg_tensorflow')
-    if not build_with_cuda:
-        import tensorflow as tf
-        if hasattr(tf.test, "is_gpu_available"):
-            build_with_cuda = tf.test.is_gpu_available(cuda_only=True)
-if not packages:
-    print("❌ Error: PyTorch or TensorFlow must be installed.")
-    exit(1)
-
-# 🔧 环境变量控制
-if 'DIFFVG_CUDA' in os.environ:
-    build_with_cuda = os.environ['DIFFVG_CUDA'] == '1'
-
-setup(
-    name='diffvg',
-    version='0.0.1',
-    install_requires=["svgpathtools"],
-    description='Differentiable Vector Graphics',
-    ext_modules=[CMakeExtension('diffvg', '', build_with_cuda)],
-    cmdclass=dict(build_ext=Build, install=install),
-    packages=packages,
-    zip_safe=False,
-)
-
