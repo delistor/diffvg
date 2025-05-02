@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(diffvg VERSION 0.0.1 DESCRIPTION "Differentiable Vector Graphics")
+project(diffvg VERSION 0.0.1 LANGUAGES CXX CUDA)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # ✅ Python3 ≥ 3.7
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
@@ -18,40 +20,31 @@ endif()
 message(STATUS "✅ Found pybind11 at: ${PYBIND11_INCLUDE_DIR}")
 include_directories(${PYBIND11_INCLUDE_DIR})
 
-# ✅ CUDA 配置
+# ✅ CUDA 选项
 option(DIFFVG_CUDA "Build diffvg with GPU code path?" ON)
 
 if(DIFFVG_CUDA)
     message(STATUS "✅ Build with CUDA support")
-    find_package(CUDA 10 REQUIRED)
-    set(CMAKE_CUDA_STANDARD 11)
-    if(NOT WIN32)
-        set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
-    endif()
+    enable_language(CUDA)
+    add_definitions(-DCOMPILE_WITH_CUDA)
 else()
     message(STATUS "⚠️ Build without CUDA support")
     set(THRUST_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/thrust")
     include_directories(${THRUST_INCLUDE_DIR})
 endif()
 
-# ✅ 源文件列表
+# ✅ 源文件列表（可根据情况使用 .cu 替换 diffvg.cpp）
 set(SRCS
     atomic.cpp
     color.cpp
-    diffvg.cpp
+    diffvg.cu  # ⚠️ 关键！必须改名才能使用 nvcc 正确编译 CUDA
     parallel.cpp
     scene.cpp
     shape.cpp
-    # 如果有其他文件，请继续添加
 )
 
-# ✅ 添加库
-if(DIFFVG_CUDA)
-    add_compile_definitions(COMPILE_WITH_CUDA)
-    cuda_add_library(diffvg MODULE ${SRCS})
-else()
-    add_library(diffvg MODULE ${SRCS})
-endif()
+# ✅ 编译目标
+add_library(diffvg MODULE ${SRCS})
 
 # ✅ 设置输出为 Python 模块（无前缀）
 set_target_properties(diffvg PROPERTIES PREFIX "")
@@ -67,7 +60,4 @@ set_target_properties(diffvg PROPERTIES
 if(APPLE)
     set_target_properties(diffvg PROPERTIES INSTALL_RPATH "@loader_path")
 endif()
-
-# ✅ 设置标准
-set_property(TARGET diffvg PROPERTY CXX_STANDARD 11)
 
