@@ -34,3 +34,40 @@ else()
     include_directories(${THRUST_INCLUDE_DIR})
 endif()
 
+# ✅ 源文件列表
+set(SRCS
+    atomic.cpp
+    color.cpp
+    diffvg.cpp
+    parallel.cpp
+    scene.cpp
+    shape.cpp
+    # 如果有其他文件，请继续添加
+)
+
+# ✅ 添加库
+if(DIFFVG_CUDA)
+    add_compile_definitions(COMPILE_WITH_CUDA)
+    cuda_add_library(diffvg MODULE ${SRCS})
+else()
+    add_library(diffvg MODULE ${SRCS})
+endif()
+
+# ✅ 设置输出为 Python 模块（无前缀）
+set_target_properties(diffvg PROPERTIES PREFIX "")
+
+# ✅ 设置 RPATH（允许 Python 找到动态库）
+set_target_properties(diffvg PROPERTIES
+    SKIP_BUILD_RPATH FALSE
+    BUILD_WITH_INSTALL_RPATH TRUE
+    INSTALL_RPATH "$ORIGIN"
+)
+
+# ✅ Mac 特殊处理
+if(APPLE)
+    set_target_properties(diffvg PROPERTIES INSTALL_RPATH "@loader_path")
+endif()
+
+# ✅ 设置标准
+set_property(TARGET diffvg PROPERTY CXX_STANDARD 11)
+
