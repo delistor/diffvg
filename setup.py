@@ -56,7 +56,7 @@ class Build(build_ext):
 
             env = os.environ.copy()
             env['CXXFLAGS'] = f'{env.get("CXXFLAGS", "")} -DVERSION_INFO="{self.distribution.get_version()}"'
-            env['PYBIND11_INCLUDE_DIR'] = pybind11_include  # 传递给 CMake 可选
+            env['PYBIND11_INCLUDE_DIR'] = pybind11_include
 
             if not os.path.exists(self.build_temp):
                 os.makedirs(self.build_temp)
@@ -88,18 +88,22 @@ if not packages:
     print("❌ Error: PyTorch or TensorFlow must be installed.")
     sys.exit(1)
 
-# === 可强制通过环境变量覆盖 CUDA 选项 ===
+# === 可通过环境变量覆盖 CUDA 构建选项 ===
 if 'DIFFVG_CUDA' in os.environ:
     build_with_cuda = os.environ['DIFFVG_CUDA'] == '1'
+
+# ✅ 定义 ext_modules 并传给 setup()
+ext_modules = [CMakeExtension('diffvg', '.', build_with_cuda)]
 
 setup(
     name='diffvg',
     version='0.0.1',
     install_requires=["svgpathtools"],
     description='Differentiable Vector Graphics',
-    ext_modules=[CMakeExtension('diffvg', '.', build_with_cuda)],
+    ext_modules=ext_modules,
     cmdclass=dict(build_ext=Build, install=install),
     packages=packages,
     zip_safe=False,
 )
+
 
